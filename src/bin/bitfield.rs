@@ -1,7 +1,8 @@
 #![no_main]
 #![no_std]
 
-use my_app as _; // global logger + panicking-behavior + memory layout
+use nrf52840_co2 as _; // global logger + panicking-behavior + memory layout
+use nrf52840_hal as _;
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
@@ -9,5 +10,5 @@ fn main() -> ! {
     let frequency: u32 = 276;
     defmt::println!("FREQUENCY: {0=0..7}, MAP: {0=8..9}", frequency);
 
-    my_app::exit()
+    nrf52840_co2::exit()
 }

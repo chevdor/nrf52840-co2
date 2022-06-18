@@ -137,6 +137,4 @@ fn main() -> ! {
 		defmt::info!("{=f32} °C", temperature);
 
 	}
-
-	// my_app::exit()
 }

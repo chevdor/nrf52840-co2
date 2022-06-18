@@ -1,12 +1,13 @@
 #![no_main]
 #![no_std]
 
-use my_app as _; // global logger + panicking-behavior + memory layout
+use nrf52840_co2 as _; // global logger + panicking-behavior + memory layout
+use nrf52840_hal as _;
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
     ack(10, 10);
-    my_app::exit()
+    nrf52840_co2::exit()
 }
 
 fn ack(m: u32, n: u32) -> u32 {

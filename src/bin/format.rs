@@ -1,8 +1,9 @@
 #![no_main]
 #![no_std]
 
-use my_app as _; // global logger + panicking-behavior + memory layout
+use nrf52840_co2 as _; // global logger + panicking-behavior + memory layout
 use defmt::Format; // <- derive attribute
+use nrf52840_hal as _;
 
 #[derive(Format)]
 struct S1<T> {
@@ -25,5 +26,5 @@ fn main() -> ! {
     let x = 42;
     defmt::println!("x={=u8}", x);
 
-    my_app::exit()
+    nrf52840_co2::exit()
 }
