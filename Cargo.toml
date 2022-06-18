@@ -1,8 +1,9 @@
 [package]
 authors = ["Chevdor <chevdor@gmail.com>"]
-name = "my-app"
+name = "nrf52840-co2"
 edition = "2018"
 version = "0.1.0"
+default-run = "hello"
 
 [lib]
 harness = false

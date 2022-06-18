@@ -3,7 +3,7 @@
 
 use embedded_hal::{blocking::delay::DelayMs, digital::v2::OutputPin};
 use hal::gpio::{Output, Pin, PushPull};
-use my_app as _;
+use nrf52840_co2 as _;
 use nrf52840_hal::{
 	self as hal,
 	gpio::{p0::Parts as P0Parts, Level},
