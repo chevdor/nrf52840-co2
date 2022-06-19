@@ -1,34 +1,29 @@
 #![no_main]
-#![no_std]
-mod button;
-mod rgb_led;
-mod temperature;
+#![cfg_attr(not(test), no_std)]
 
-use embedded_hal::{blocking::delay::DelayMs, digital::v2::OutputPin};
-use nrf52840_co2 as _;
+use cortex_m::prelude::_embedded_hal_timer_CountDown;
+use embedded_hal::digital::v2::OutputPin;
+use nb::block;
+use nrf52840_co2::{button::Button, rgb_led::*, settings::*, temperature::TemperatureUnit};
 use nrf52840_hal::{
 	self as hal,
 	gpio::{p0::Parts as P0Parts, Level},
 	Temp, Timer,
 };
 
-use crate::{
-	button::Button,
-	rgb_led::{Color, RgbLed},
-	temperature::TemperatureUnit,
-}; // global logger + panicking-behavior + memory layout
-
 #[cortex_m_rt::entry]
 fn main() -> ! {
 	defmt::info!("Starting...");
 
 	let board = hal::pac::Peripherals::take().unwrap();
-	let mut timer = Timer::new(board.TIMER0);
+	// let mut timer = Timer::new(board.TIMER0);
+	let mut periodic_timer = Timer::periodic(board.TIMER0);
+
 	let mut temp = Temp::new(board.TEMP);
 
 	let p0_pins = P0Parts::new(board.P0);
 
-	let button_1 = Button::new(p0_pins.p0_11.degrade());
+	let mut button_1 = Button::new(p0_pins.p0_11.degrade());
 	defmt::debug!("is pressed  {=bool}", button_1.is_pressed()); // first call return erroneously true
 	defmt::debug!("is pressed  {=bool}", button_1.is_pressed()); // second false...
 
@@ -39,60 +34,45 @@ fn main() -> ! {
 		p0_pins.p0_28.into_push_pull_output(Level::High).into(),
 	);
 
-	let delay = 1000u32;
 	let mut current_unit = TemperatureUnit::Celsius;
+	let mut millis: u64 = 0;
 
 	loop {
-		led_1.set_high().unwrap();
+		periodic_timer.start(1000_u32);
 
-		if button_1.is_pressed() {
-			current_unit = match current_unit {
-				TemperatureUnit::Fahrenheit => TemperatureUnit::Kelvin,
-				TemperatureUnit::Kelvin => TemperatureUnit::Celsius,
-				TemperatureUnit::Celsius => TemperatureUnit::Fahrenheit,
+		if (millis % 1000) == 0 {
+			// defmt::debug("Tick (milliseconds): {=u64}", millis);
+			led_1.set_low().unwrap();
+			let temp: f32 = TEMP_ADJUST + temp.measure().to_num::<f32>();
+			match current_unit {
+				TemperatureUnit::Fahrenheit => defmt::info!("{=f32} °F", current_unit.convert_temperature(temp)),
+				TemperatureUnit::Celsius => defmt::info!("{=f32} °C", current_unit.convert_temperature(temp)),
+				TemperatureUnit::Kelvin => defmt::info!("{=f32} °K", current_unit.convert_temperature(temp)),
 			};
-			// defmt::info!("Unit changed to {=?}", current_unit);
-			defmt::info!("Unit changed");
+
+			match temp {
+				t if t < TEMP_THRESHOLD_COLD => rgb.set_color(Color::White),
+				t if t >= TEMP_THRESHOLD_COLD && t < TEMP_THRESHOLD_GOOD => rgb.set_color(Color::Blue),
+				t if t >= TEMP_THRESHOLD_GOOD && t < TEMP_THRESHOLD_WARM => rgb.set_color(Color::Green),
+				t if t >= TEMP_THRESHOLD_WARM && t < TEMP_THRESHOLD_HOT => rgb.set_color(Color::Yellow),
+				t if t >= TEMP_THRESHOLD_HOT => rgb.set_color(Color::Red),
+				_ => {}
+			};
+			led_1.set_high().unwrap();
+		};
+		if (millis % 5) == 0 {
+			if button_1.check_rising_edge() {
+				current_unit = match current_unit {
+					TemperatureUnit::Fahrenheit => TemperatureUnit::Kelvin,
+					TemperatureUnit::Kelvin => TemperatureUnit::Celsius,
+					TemperatureUnit::Celsius => TemperatureUnit::Fahrenheit,
+				};
+				// defmt::info!("Unit changed to {=?}", current_unit);
+				defmt::debug!("Unit changed");
+			};
 		};
 
-		// if button_1.is_pressed() {
-
-		timer.delay_ms(delay / 10);
-		rgb.set_color(Color::Blue);
-
-		timer.delay_ms(delay / 10);
-		rgb.set_color(Color::White);
-
-		timer.delay_ms(delay / 10);
-		rgb.set_color(Color::Red);
-
-		timer.delay_ms(delay / 10);
-		rgb.set_color(Color::Yellow);
-
-		timer.delay_ms(delay / 10);
-		rgb.set_color(Color::Cyan);
-
-		timer.delay_ms(delay / 10);
-		rgb.set_color(Color::Magenta);
-
-		timer.delay_ms(delay / 10);
-		rgb.set_color(Color::Green);
-
-		timer.delay_ms(delay / 10);
-		rgb.set_color(Color::Off);
-		// } else {
-		// 	timer.delay_ms(delay);
-		// }
-
-		led_1.set_low().unwrap();
-		timer.delay_ms(delay / 10);
-
-		let temperature: f32 = temp.measure().to_num();
-		match current_unit {
-			TemperatureUnit::Fahrenheit => defmt::info!("{=f32} °F", current_unit.convert_temperature(temperature)),
-			TemperatureUnit::Celsius => defmt::info!("{=f32} °C", current_unit.convert_temperature(temperature)),
-			TemperatureUnit::Kelvin => defmt::info!("{=f32} °K", current_unit.convert_temperature(temperature)),
-		};
+		block!(periodic_timer.wait()).unwrap();
+		millis = millis.saturating_add(1);
 	}
 }
-                                                                                                        

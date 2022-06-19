@@ -6,7 +6,7 @@ use nrf52840_hal as _;
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
-    defmt::println!("main");
+	defmt::println!("main");
 
-    defmt::panic!()
+	defmt::panic!()
 }

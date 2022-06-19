@@ -1,9 +1,5 @@
-#![no_main]
-#![no_std]
-
 use embedded_hal::digital::v2::OutputPin;
 use hal::gpio::{Output, Pin, PushPull};
-use nrf52840_co2 as _;
 use nrf52840_hal::{self as hal};
 
 pub enum Color {

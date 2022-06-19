@@ -1,6 +1,11 @@
 #![no_main]
 #![no_std]
 
+pub mod button;
+pub mod rgb_led;
+pub mod settings;
+pub mod temperature;
+
 use defmt_rtt as _; // global logger
 
 // TODO(5) adjust HAL import
@@ -12,14 +17,14 @@ use panic_probe as _;
 // this prevents the panic message being printed *twice* when `defmt::panic` is invoked
 #[defmt::panic_handler]
 fn panic() -> ! {
-    cortex_m::asm::udf()
+	cortex_m::asm::udf()
 }
 
 /// Terminates the application and makes `probe-run` exit with exit-code = 0
 pub fn exit() -> ! {
-    loop {
-        cortex_m::asm::bkpt();
-    }
+	loop {
+		cortex_m::asm::bkpt();
+	}
 }
 
 // defmt-test 0.3.0 has the limitation that this `#[tests]` attribute can only be used
@@ -28,10 +33,10 @@ pub fn exit() -> ! {
 #[cfg(test)]
 #[defmt_test::tests]
 mod unit_tests {
-    use defmt::assert;
+	use defmt::assert;
 
-    #[test]
-    fn it_works() {
-        assert!(true)
-    }
+	#[test]
+	fn it_works() {
+		assert!(true)
+	}
 }
