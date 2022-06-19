@@ -4,7 +4,9 @@
 use cortex_m::prelude::_embedded_hal_timer_CountDown;
 use embedded_hal::digital::v2::OutputPin;
 use nb::block;
-use nrf52840_co2::{button::Button, rgb_led::*, scd30::SCD30, settings::*, temperature::TemperatureUnit, buzzer::Buzzer};
+use nrf52840_co2::{
+	button::Button, buzzer::Buzzer, rgb_led::*, scd30::SCD30, settings::*, temperature::TemperatureUnit,
+};
 use nrf52840_hal::{
 	self as hal,
 	gpio::{p0::Parts as P0Parts, Level},
@@ -31,8 +33,8 @@ fn main() -> ! {
 
 	let pin_buzzer = p0_pins.p0_29.into_push_pull_output(Level::Low).degrade();
 	let mut buzzer = Buzzer::init(pin_buzzer);
-    buzzer.noise_variable(&mut timer, 440_u32, 300_u32);
-    buzzer.noise_variable(&mut timer, 660_u32, 100_u32);
+	buzzer.noise_variable(&mut timer, 440_u32, 300_u32);
+	buzzer.noise_variable(&mut timer, 660_u32, 100_u32);
 
 	let scl = p0_pins.p0_30.into_floating_input().degrade();
 	let sda = p0_pins.p0_31.into_floating_input().degrade();
@@ -73,6 +75,31 @@ fn main() -> ! {
 				t if t >= TEMP_THRESHOLD_HOT => rgb.set_color(Color::Red),
 				_ => {}
 			};
+
+			loop {
+				if sdc30.data_ready().unwrap() {
+					defmt::info!("Data ready.");
+					break;
+				}
+			}
+
+			let result = sdc30.read_measurement().unwrap();
+
+			let co2 = result.co2;
+			let temp = result.temperature;
+			let humidity = result.humidity;
+
+			defmt::info!(
+				"
+					CO2 {=f32} ppm
+					Temperature {=f32} °C
+					Humidity {=f32} %
+					",
+				co2,
+				temp,
+				humidity
+			);
+
 			led_1.set_high().unwrap();
 		};
 		if (millis % 5) == 0 {
@@ -86,30 +113,6 @@ fn main() -> ! {
 				defmt::debug!("Unit changed");
 			};
 		};
-
-		loop {
-			if sdc30.data_ready().unwrap() {
-				defmt::info!("Data ready.");
-				break;
-			}
-		}
-
-		let result = sdc30.read_measurement().unwrap();
-
-		let co2 = result.co2;
-		let temp = result.temperature;
-		let humidity = result.humidity;
-
-		defmt::info!(
-			"
-				CO2 {=f32} ppm
-				Temperature {=f32} °C
-				Humidity {=f32} %
-				",
-			co2,
-			temp,
-			humidity
-		);
 
 		block!(periodic_timer.wait()).unwrap();
 		millis = millis.saturating_add(1);

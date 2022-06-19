@@ -55,44 +55,29 @@ where
 	}
 
 	pub fn data_ready(&mut self) -> Result<bool, Error> {
-        let command: [u8; 2] = [0x02, 0x02];
-        let mut rd_buffer = [0u8; 3];
+		let command: [u8; 2] = [0x02, 0x02];
+		let mut rd_buffer = [0u8; 3];
 
-        self.0.write(DEFAULT_ADDRESS, &command)?;
-        self.0.read(DEFAULT_ADDRESS, &mut rd_buffer)?;
+		self.0.write(DEFAULT_ADDRESS, &command)?;
+		self.0.read(DEFAULT_ADDRESS, &mut rd_buffer)?;
 
-        Ok(u16::from_be_bytes([rd_buffer[0], rd_buffer[1]]) == 1)
-    }
+		Ok(u16::from_be_bytes([rd_buffer[0], rd_buffer[1]]) == 1)
+	}
 
-    pub fn read_measurement(&mut self) -> Result<SensorData, Error> {
-        let command: [u8; 2] = [0x03, 0x00];
-        let mut rd_buffer = [0u8; 18];
+	pub fn read_measurement(&mut self) -> Result<SensorData, Error> {
+		let command: [u8; 2] = [0x03, 0x00];
+		let mut rd_buffer = [0u8; 18];
 
-        self.0.write(DEFAULT_ADDRESS, &command)?;
-        self.0.read(DEFAULT_ADDRESS, &mut rd_buffer)?;
+		self.0.write(DEFAULT_ADDRESS, &command)?;
+		self.0.read(DEFAULT_ADDRESS, &mut rd_buffer)?;
 
-        let data = SensorData {
-            co2: f32::from_bits(u32::from_be_bytes([
-                rd_buffer[0],
-                rd_buffer[1],
-                rd_buffer[3],
-                rd_buffer[4],
-            ])),
-            temperature: f32::from_bits(u32::from_be_bytes([
-                rd_buffer[6],
-                rd_buffer[7],
-                rd_buffer[9],
-                rd_buffer[10],
-            ])),
-            humidity: f32::from_bits(u32::from_be_bytes([
-                rd_buffer[12],
-                rd_buffer[13],
-                rd_buffer[15],
-                rd_buffer[16],
-            ])),
-        };
-        Ok(data)
-    }
+		let data = SensorData {
+			co2: f32::from_bits(u32::from_be_bytes([rd_buffer[0], rd_buffer[1], rd_buffer[3], rd_buffer[4]])),
+			temperature: f32::from_bits(u32::from_be_bytes([rd_buffer[6], rd_buffer[7], rd_buffer[9], rd_buffer[10]])),
+			humidity: f32::from_bits(u32::from_be_bytes([rd_buffer[12], rd_buffer[13], rd_buffer[15], rd_buffer[16]])),
+		};
+		Ok(data)
+	}
 }
 
 pub struct SensorData {
