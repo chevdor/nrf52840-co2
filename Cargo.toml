@@ -3,7 +3,7 @@ authors = ["Chevdor <chevdor@gmail.com>"]
 name = "nrf52840-co2"
 edition = "2018"
 version = "0.1.0"
-default-run = "hello"
+default-run = "main"
 
 [lib]
 harness = false
