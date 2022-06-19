@@ -4,7 +4,7 @@
 use cortex_m::prelude::_embedded_hal_timer_CountDown;
 use embedded_hal::digital::v2::OutputPin;
 use nb::block;
-use nrf52840_co2::{button::Button, rgb_led::*, scd30::SCD30, settings::*, temperature::TemperatureUnit};
+use nrf52840_co2::{button::Button, rgb_led::*, scd30::SCD30, settings::*, temperature::TemperatureUnit, buzzer::Buzzer};
 use nrf52840_hal::{
 	self as hal,
 	gpio::{p0::Parts as P0Parts, Level},
@@ -16,8 +16,8 @@ fn main() -> ! {
 	defmt::info!("Starting...");
 
 	let board = hal::pac::Peripherals::take().unwrap();
-	// let mut timer = Timer::new(board.TIMER0);
 	let mut periodic_timer = Timer::periodic(board.TIMER0);
+	let mut timer = Timer::new(board.TIMER1);
 
 	let mut temp = Temp::new(board.TEMP);
 
@@ -28,6 +28,12 @@ fn main() -> ! {
 	defmt::debug!("is pressed  {=bool}", button_1.is_pressed()); // second false...
 
 	let mut led_1 = p0_pins.p0_13.into_push_pull_output(Level::Low);
+
+	let pin_buzzer = p0_pins.p0_29.into_push_pull_output(Level::Low).degrade();
+	let mut buzzer = Buzzer::init(pin_buzzer);
+    buzzer.noise_variable(&mut timer, 440_u32, 300_u32);
+    buzzer.noise_variable(&mut timer, 660_u32, 100_u32);
+
 	let scl = p0_pins.p0_30.into_floating_input().degrade();
 	let sda = p0_pins.p0_31.into_floating_input().degrade();
 

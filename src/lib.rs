@@ -6,6 +6,7 @@ pub mod rgb_led;
 pub mod settings;
 pub mod temperature;
 pub mod scd30;
+pub mod buzzer;
 
 use defmt_rtt as _; // global logger
 
