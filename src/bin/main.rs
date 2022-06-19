@@ -4,7 +4,7 @@
 use cortex_m::prelude::_embedded_hal_timer_CountDown;
 use embedded_hal::digital::v2::OutputPin;
 use nb::block;
-use nrf52840_co2::{button::Button, rgb_led::*, settings::*, temperature::TemperatureUnit};
+use nrf52840_co2::{button::Button, rgb_led::*, scd30::SCD30, settings::*, temperature::TemperatureUnit};
 use nrf52840_hal::{
 	self as hal,
 	gpio::{p0::Parts as P0Parts, Level},
@@ -28,6 +28,13 @@ fn main() -> ! {
 	defmt::debug!("is pressed  {=bool}", button_1.is_pressed()); // second false...
 
 	let mut led_1 = p0_pins.p0_13.into_push_pull_output(Level::Low);
+	let scl = p0_pins.p0_30.into_floating_input().degrade();
+	let sda = p0_pins.p0_31.into_floating_input().degrade();
+
+	let mut sdc30 = SCD30::init(board.TWIM0, scl, sda);
+	let fw_version = sdc30.get_firmware_version().unwrap();
+	defmt::info!("SCD30 Firmware v{=u8}.{=u8}", fw_version[0], fw_version[1]);
+
 	let mut rgb = RgbLed::new(
 		p0_pins.p0_03.into_push_pull_output(Level::High).into(),
 		p0_pins.p0_04.into_push_pull_output(Level::High).into(),
@@ -36,6 +43,8 @@ fn main() -> ! {
 
 	let mut current_unit = TemperatureUnit::Celsius;
 	let mut millis: u64 = 0;
+
+	sdc30.start_continuous_measurement(PRESSURE).unwrap();
 
 	loop {
 		periodic_timer.start(1000_u32);
@@ -71,6 +80,30 @@ fn main() -> ! {
 				defmt::debug!("Unit changed");
 			};
 		};
+
+		loop {
+			if sdc30.data_ready().unwrap() {
+				defmt::info!("Data ready.");
+				break;
+			}
+		}
+
+		let result = sdc30.read_measurement().unwrap();
+
+		let co2 = result.co2;
+		let temp = result.temperature;
+		let humidity = result.humidity;
+
+		defmt::info!(
+			"
+				CO2 {=f32} ppm
+				Temperature {=f32} °C
+				Humidity {=f32} %
+				",
+			co2,
+			temp,
+			humidity
+		);
 
 		block!(periodic_timer.wait()).unwrap();
 		millis = millis.saturating_add(1);

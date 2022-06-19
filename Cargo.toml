@@ -16,6 +16,7 @@ harness = false
 [dependencies]
 cortex-m = "0.7"
 cortex-m-rt = "0.7"
+crc_all = "0.2.2"
 defmt = "0.3"
 defmt-rtt = "0.3"
 embedded-hal = "0.2"
