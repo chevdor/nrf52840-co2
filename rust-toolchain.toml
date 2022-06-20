@@ -1,4 +1,4 @@
 [toolchain]
 channel = "1.60.0"
-components = [ "cargo", "rustfmt", "rustc" ]
+components = [ "cargo", "rustfmt", "rustc", "llvm-tools-preview" ]
 targets = [ "thumbv7em-none-eabihf" ]
