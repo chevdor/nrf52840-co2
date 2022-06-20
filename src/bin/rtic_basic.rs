@@ -25,7 +25,7 @@ mod app {
 		defmt::println!("idle");
 		let mut i = 0;
 
-		while 1 < 10 {
+		while i < 10 {
 			i += 1;
 			defmt::println!("{=u8}", i);
 		}
