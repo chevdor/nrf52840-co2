@@ -5,8 +5,6 @@ use rtic::app;
 
 #[app(device = crate::hal::pac)]
 mod app {
-	// use cortex_m_semihosting::{debug, hprintln};
-
 	#[shared]
 	struct Shared {}
 

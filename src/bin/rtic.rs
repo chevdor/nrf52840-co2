@@ -2,55 +2,33 @@
 #![no_std]
 #![deny(unsafe_code)]
 
-// pub use panic_halt as _;
-
-// pub use stm32f4xx_hal::gpio::gpioa::{PA0, PA1};
-// pub use stm32f4xx_hal::gpio::gpiog::{PG13, PG14};
-// pub use stm32f4xx_hal::gpio::*;
-// pub use stm32f4xx_hal::{
-// 	gpio::{Edge, Input, Output, PushPull},
-// 	prelude::*,
-// };
-
-#[rtic::app(device = nrf52840_hal::pac, peripherals = true, dispatchers = [TIMER0])]
+#[rtic::app(device = hal::pac, peripherals = true, dispatchers = [SWI0_EGU0])]
 mod app {
-	// use crate::prelude::*;
-	// use cortex_m::prelude::_embedded_hal_timer_CountDown;
-	use embedded_hal::digital::v2::OutputPin;
-	use hal::gpio::p0::{self, P0_11, P0_13, P0_14};
-	use hal::gpio::{Input, Output, PullDown, PushPull};
-
-	use hal::pac::P0;
-	// use nb::block;
-	// use nrf52840_co2::{
-	// 	button::Button, buzzer::Buzzer, rgb_led::*, scd30::SCD30, settings::*, temperature::TemperatureUnit,
-	// };
-
-	use nrf52840_co2::{
-		button::Button, buzzer::Buzzer, rgb_led::*, scd30::SCD30, settings::*, temperature::TemperatureUnit,
-	};
-
+	use embedded_hal::digital::v2::InputPin;
 	pub use fugit::Duration;
-	use nrf52840_hal::{
-		self as hal,
-		gpio::{p0::Parts as P0Parts, Level},
+	use nrf52840_co2 as _;
+	use systick_monotonic::*;
+	use {
+		hal::{
+			gpio::{Input, Level, Output, Pin, PullUp, PushPull},
+			gpiote::*,
+		},
+		nrf52840_hal as hal,
 	};
-
-	pub use systick_monotonic::Systick;
 
 	#[shared]
-	struct Shared {}
+	struct Shared {
+		gpiote: Gpiote,
+	}
 
 	#[local]
 	struct Local {
-		button: P0_11<Input<PullDown>>,
-		state: bool,
-		led1: P0_13<Output<PushPull>>,
+		btn_1: Pin<Input<PullUp>>,
+		btn_2: Pin<Input<PullUp>>,
+		led1: Pin<Output<PushPull>>,
 		led1_state: bool,
-		led2: P0_14<Output<PushPull>>,
+		led2: Pin<Output<PushPull>>,
 		led2_state: bool,
-		// logger: Logger,
-		// ir_gate_1: IRGate1,
 	}
 
 	#[monotonic(binds = SysTick, default = true)]
@@ -58,81 +36,81 @@ mod app {
 
 	#[init]
 	fn init(mut ctx: init::Context) -> (Shared, Local, init::Monotonics) {
-		// let core: cortex_m::Peripherals = ctx.core;
-		// let mut logger = Logger::new(ctx.core.ITM);
-		// logger.log("start");
-		// let mut syscfg = ctx.device.SYSCFG.constrain();
+		let port_0 = hal::gpio::p0::Parts::new(ctx.device.P0);
 
-		let port_0 = P0Parts::new(ctx.device.P0);
-
-		// let gpioa = ctx.device.GPIOA.split();
-		// let gpiog = ctx.device.GPIOG.split();
-
-		let led1 = port_0.p0_13.into_push_pull_output(Level::Low);
-		let led2 = port_0.p0_14.into_push_pull_output(Level::Low);
+		let led1 = port_0.p0_13.into_push_pull_output(Level::High).degrade();
+		let led2 = port_0.p0_14.into_push_pull_output(Level::High).degrade();
 		let mono = Systick::new(ctx.core.SYST, 36_000_000);
 
-		let mut button = port_0.p0_11.into_pulldown_input();
-		// button.make_interrupt_source(&mut syscfg);
-		// button.enable_interrupt(&mut ctx.device.TIMER2);
-		// button.trigger_on_edge(&mut ctx.device.TIMER2, Edge::Rising);
+		let btn_1 = port_0.p0_11.into_pullup_input().degrade();
+		let btn_2 = port_0.p0_12.into_pullup_input().degrade();
 
-		// let mut ir_gate_1 = IRGate1 { pin: gpioa.pa1.into_pull_down_input(), state: IRGateState::Close };
-		// ir_gate_1.pin.make_interrupt_source(&mut syscfg);
-		// ir_gate_1.pin.enable_interrupt(&mut ctx.device.EXTI);
-		// ir_gate_1.pin.trigger_on_edge(&mut ctx.device.EXTI, Edge::Rising);
+		// see https://github.com/nrf-rs/nrf-hal/blob/663008c033ad67263e4ac0c561d5d1fac28d7170/examples/gpiote-demo/src/main.rs
+		let gpiote = Gpiote::new(ctx.device.GPIOTE);
+
+		// Set btn1 to generate event on channel 0 and enable interrupt
+		gpiote.channel0().input_pin(&btn_1).hi_to_lo().enable_interrupt();
+		gpiote.port().input_pin(&btn_2).low();
+
+		// Enable interrupt for port event
+		gpiote.port().enable_interrupt();
 
 		#[cfg(feature = "semihosting")]
 		hprintln!("starting").unwrap();
 
-		blink1::spawn_after(Duration::<u64, 1, 1000>::from_ticks(100)).unwrap();
+		// blink1::spawn_after(Duration::<u64, 1, 1000>::from_ticks(100)).unwrap();
 		(
-			Shared {},
-			Local {
-				button,
-				state: false,
-				led1,
-				led1_state: false,
-				led2,
-				led2_state: false,
-				// ir_gate_1,
-				// 	logger,
-			},
+			Shared { gpiote },
+			Local { btn_1, btn_2, led1, led1_state: false, led2, led2_state: false },
 			init::Monotonics(mono),
 		)
 	}
 
-	#[task(local = [led1, led1_state])]
-	fn blink1(cx: blink1::Context) {
-		if *cx.local.led1_state {
-			let _ = cx.local.led1.set_low();
-			*cx.local.led1_state = false;
-		} else {
-			let _ = cx.local.led1.set_high();
-			*cx.local.led1_state = true;
-		}
+	// #[task(local = [led1, led1_state])]
+	// fn blink1(cx: blink1::Context) {
+	// 	if *cx.local.led1_state {
+	// 		let _ = cx.local.led1.set_low();
+	// 		*cx.local.led1_state = false;
+	// 	} else {
+	// 		let _ = cx.local.led1.set_high();
+	// 		*cx.local.led1_state = true;
+	// 	}
 
-		blink1::spawn_after(Duration::<u64, 1, 1000>::from_ticks(250)).unwrap();
+	// 	blink1::spawn_after(Duration::<u64, 1, 1000>::from_ticks(250)).unwrap();
+	// }
+
+	#[task(binds = GPIOTE, shared = [gpiote])]
+	fn on_gpiote(mut ctx: on_gpiote::Context) {
+		ctx.shared.gpiote.lock(|gpiote| {
+			if gpiote.channel0().is_event_triggered() {
+				defmt::println!("Interrupt from channel 0 event");
+			}
+			if gpiote.port().is_event_triggered() {
+				defmt::println!("Interrupt from port event");
+			}
+			// Reset all events
+			gpiote.reset_events();
+			// Debounce
+			debounce::spawn_after(50.millis()).ok();
+		});
 	}
 
-	// #[task(binds = TIMER1, local = [button, state, led2], priority = 2)]
-	// fn btn_user(cx: btn_user::Context) {
-	// 	cx.local.button.clear_interrupt_pending_bit();
-	// 	if *cx.local.state {
-	// 		cx.local.led2.set_low();
-	// 		*cx.local.state = false;
-	// 	} else {
-	// 		cx.local.led2.set_high();
-	// 		*cx.local.state = true;
-	// 	}
-	// }
+	#[task(shared = [gpiote], local = [btn_1, btn_2])]
+	fn debounce(mut ctx: debounce::Context) {
+		let btn1_pressed = ctx.local.btn_1.is_low().unwrap();
+		let btn2_pressed = ctx.local.btn_2.is_low().unwrap();
 
-	// #[idle( local = [logger])]
-	// fn idle(cx: idle::Context) -> ! {
-	// 	#[cfg(feature = "semihosting")]
-	// 	hprintln!("idle").unwrap();
-	// 	cx.local.logger.log("idle");
-	// 	// cx.local.led2.toggle();
-	// 	loop {}
-	// }
+		ctx.shared.gpiote.lock(|gpiote| {
+			if btn1_pressed {
+				defmt::println!("Button 1 was pressed!");
+				// Manually run "task out" operation (toggle) on channel 1 (toggles led1)
+				gpiote.channel1().out();
+			}
+			if btn2_pressed {
+				defmt::println!("Button 2 was pressed!");
+				// Manually run "task clear" on channel 1 (led1 on)
+				gpiote.channel1().clear();
+			}
+		});
+	}
 }
